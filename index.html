@@ -51,6 +51,9 @@
   .who b { color:#ffcf6b; }
   .mini { cursor:pointer; border:1px solid rgba(255,255,255,.2); background:rgba(255,255,255,.08); color:#fff; border-radius:10px; padding:7px 13px; font-size:12px; font-weight:700; }
   .mini:active { transform:scale(.95); }
+  .mini:disabled, .mini.done { opacity:.5; cursor:default; transform:none;
+    background:rgba(255,255,255,.04); border-color:rgba(255,255,255,.1); color:#9fd8a6; }
+  .mini:disabled:active { transform:none; }
   .badge { display:inline-block; background:rgba(255,207,107,.15); color:#ffcf6b; border-radius:20px; padding:4px 13px; font-size:11.5px; font-weight:700; margin:4px 0 10px; }
   .brand { display:flex; align-items:center; justify-content:center; gap:15px; margin:2px 0 4px; }
   .logo { width:76px; height:76px; border-radius:19px; box-shadow:0 12px 30px rgba(255,150,40,.45), inset 0 1px 0 rgba(255,255,255,.3); background:#12203a; }
@@ -191,7 +194,7 @@
       <div class="sub"><b>Tipp die Tauben an.</b> Weit weg = mehr Punkte, Serien = Combo. Seltene <b>Vögel 🦅🦚</b> und ein zickiger <b>Drache 🐉</b> zahlen fett.<br>Aufpassen: <b>Polizeidrohnen 🚁</b> legen Schutzschilde um Tauben — wer draufhält, zahlt Strafe. Magazin leer? <b>Steinaxt raus ⛏️</b> — Blöcke zerschlagen, jeder Block = 1 Stein. 20 schafft fast keiner. Und wer den <b>goldenen Ball ✨</b> erwischt: 30 Sekunden unendlich Steine.</div>
 
       <div class="panels">
-      <button class="btn play" id="playBtn">▶ Spielen · Zufallsstadt</button>
+      <button class="btn play" id="playBtn">▶ Spielen · Zufall</button>
 
       <div class="lbl">Platz wählen <span style="opacity:.55">— ohne Auswahl startet eine Zufallsstadt</span></div>
       <div class="cities" id="cities"></div>
@@ -1113,7 +1116,7 @@ function buildCities(){ const box=document.getElementById('cities'); box.innerHT
       buildCities(); renderBoards(); updatePlayLabel(); };
     box.appendChild(d); }); updatePlayLabel(); }
 function updatePlayLabel(){ const b=document.getElementById('playBtn'); if(!b) return;
-  b.textContent = (chosenIdx<0 || !LEVELS[chosenIdx]) ? '▶ Spielen · Zufallsstadt' : ('▶ Spielen · '+LEVELS[chosenIdx].name); }
+  b.textContent = (chosenIdx<0 || !LEVELS[chosenIdx]) ? '▶ Spielen · Zufall' : ('▶ Spielen · '+LEVELS[chosenIdx].name); }
 
 // Bestenlisten-Tabs
 document.querySelectorAll('.tab').forEach(tb=>tb.onclick=()=>{ document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on')); tb.classList.add('on'); lbScope=tb.dataset.scope; document.getElementById('lbScopeLbl').textContent=tb.textContent; renderBoards(); });
@@ -1208,8 +1211,27 @@ function generateBranding(){ let url; try{ url=makeIcon(); }catch(e){ return; }
 if('serviceWorker' in navigator && location.protocol.indexOf('http')===0){
   window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 }
+// Zählt die tatsächlich im Browser-Cache liegenden Street-View-Bilder
+async function offlinePhotoCount(){
+  try{ if(!('caches' in window)) return -1;
+    const names=await caches.keys(); let n=0;
+    for(const nm of names){ const c=await caches.open(nm); const ks=await c.keys();
+      n+=ks.filter(r=>r.url.indexOf('maps.googleapis.com')>=0).length; }
+    return n;
+  }catch(e){ return -1; }
+}
+async function refreshPreloadBtn(){
+  const btn=document.getElementById('preloadBtn'); if(!btn) return;
+  const n=await offlinePhotoCount(), flag=loadJSON('taubenOffline',0);
+  const done = n>=40 || (n<0 && flag>0);
+  if(done){ btn.disabled=true; btn.classList.add('done');
+    btn.textContent='✅ Offline gespeichert'+(n>0?(' · '+n+' Bilder'):''); }
+  else { btn.disabled=false; btn.classList.remove('done');
+    btn.textContent='📥 Alle Plätze für offline speichern'; }
+}
 function preloadAll(){
   const btn=document.getElementById('preloadBtn'), key=getKey();
+  if(btn.disabled) return;
   if(!key){ btn.textContent='⚠️ Kein Foto-Zugang'; return; }
   const urls=[];
   LEVELS.forEach(L=>{
@@ -1223,10 +1245,14 @@ function preloadAll(){
   if(!total){ btn.textContent='—'; return; }
   btn.textContent='📥 lädt 0/'+total;
   urls.forEach(u=>{ const im=new Image();
-    im.onload=im.onerror=()=>{ done++; btn.textContent = done<total ? ('📥 lädt '+done+'/'+total) : ('✅ '+total+' Bilder offline gespeichert'); };
+    im.onload=im.onerror=()=>{ done++;
+      if(done<total){ btn.textContent='📥 lädt '+done+'/'+total; }
+      else { saveJSON('taubenOffline',total); refreshPreloadBtn(); } };
     im.src=u; });
 }
 document.getElementById('preloadBtn').onclick=preloadAll;
+refreshPreloadBtn();
+if('serviceWorker' in navigator) navigator.serviceWorker.ready.then(()=>setTimeout(refreshPreloadBtn,600)).catch(()=>{});
 document.getElementById('addPlaceBtn').onclick=addPlace;
 document.getElementById('addrInput').addEventListener('keydown',e=>{ if(e.key==='Enter') addPlace(); });
 
