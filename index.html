@@ -44,7 +44,12 @@
   .wm h1 { font-size:clamp(26px,6vw,46px); line-height:.98; letter-spacing:1px; }
   .wm h1 span { background:linear-gradient(#ff8a3c,#ff5a3c); -webkit-background-clip:text; background-clip:text; color:transparent; }
   .tag { font-size:12px; opacity:.72; margin-top:3px; letter-spacing:.3px; }
-  .panels { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:6px 0 12px; }
+  .panels { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:6px 0 12px; align-items:start; }
+  details.fold > summary { cursor:pointer; font-size:13px; font-weight:800; list-style:none; display:flex; align-items:center; justify-content:space-between; }
+  details.fold > summary::-webkit-details-marker { display:none; }
+  details.fold > summary::after { content:'▾'; opacity:.55; font-size:12px; transition:transform .2s; }
+  details.fold[open] > summary::after { transform:rotate(180deg); }
+  details.fold > *:not(summary) { margin-top:9px; }
   @media(max-width:560px){ .panels{ grid-template-columns:1fr; } }
   .panel { background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.14); border-radius:20px; padding:13px; text-align:left;
     backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); box-shadow:inset 0 1px 0 rgba(255,255,255,.14); }
@@ -174,21 +179,22 @@
           <div class="tabs"><button class="tab on" data-scope="city">Diese Stadt</button><button class="tab" data-scope="total">Gesamt</button></div>
           <div class="board" id="board"></div>
         </div>
-        <div class="panel">
-          <div class="ptitle">👥 Freunde</div>
+        <details class="panel fold" id="friendsPanel">
+          <summary>👥 Freunde</summary>
           <div class="board" id="friends"></div>
           <div class="addfriend"><input id="friendInput" placeholder="Freundes-Code hier einfügen"><button id="addFriendBtn">+</button></div>
           <div class="mycode">Dein Freundes-Code (enthält deine Highscores) <button class="mini" id="copyCode" style="padding:3px 9px;font-size:11px">📋 Kopieren</button>
             <textarea id="myShare" readonly rows="2" style="width:100%;margin-top:5px;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.15);border-radius:8px;color:#9fb0c8;font-size:10px;padding:6px;resize:none" onclick="this.select()"></textarea>
             <span style="opacity:.55">Schick ihn Freunden — sie fügen ihn oben ein und sehen deine Scores.</span></div>
-        </div>
+        </details>
       </div>
 
-      <div class="lbl">Platz wählen:</div>
+      <button class="btn" id="playBtn">▶ Spielen · Zufallsstadt</button>
+      <div class="madeby"><span class="lead">created with</span><span class="sig"><svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path d="M12 21s-7.5-4.7-9.6-9.1C1 8.6 2.6 5.3 5.9 4.6c2-.4 3.9.5 5.1 2 1.2-1.5 3.1-2.4 5.1-2 3.3.7 4.9 4 3.4 7.3C19.5 16.3 12 21 12 21z" fill="currentColor"/></svg>byB0</span></div>
+
+      <div class="lbl">Platz wählen <span style="opacity:.55">— ohne Auswahl startet eine Zufallsstadt</span></div>
       <div class="cities" id="cities"></div>
       <div class="addplace"><input id="addrInput" placeholder="Eigene Adresse, z. B. Hinterholz 8"><button id="addPlaceBtn">+ Platz</button></div>
-      <button class="btn" id="playBtn">▶ Spielen</button>
-      <div class="madeby"><span class="lead">created with</span><span class="sig"><svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path d="M12 21s-7.5-4.7-9.6-9.1C1 8.6 2.6 5.3 5.9 4.6c2-.4 3.9.5 5.1 2 1.2-1.5 3.1-2.4 5.1-2 3.3.7 4.9 4 3.4 7.3C19.5 16.3 12 21 12 21z" fill="currentColor"/></svg>byB0</span></div>
     </div>
   </div>
 
@@ -1026,7 +1032,7 @@ function makeCustomLevel(c){ return { name:c.name, land:'eigener Platz', wiki:[]
   sky:['#7fb9dd','#bcdaec','#e9f4fb'], haze:'#e3f0f8', build:'#c9b892', roof:'#7d4d33', ground:'#9a8b66', feat:{}, mon:monWien }; }
 function syncCustom(){ LEVELS.length=BASE_N; custom.forEach(c=>LEVELS.push(makeCustomLevel(c))); if(levelIndex>=LEVELS.length) levelIndex=0; }
 /* ---------- Vollbild-Vorschau: Ausschnitt einstellen, wird dauerhaft gespeichert ---------- */
-let previewIdx=0;
+let previewIdx=0, chosenIdx=-1; // chosenIdx = -1 bedeutet Zufallsstadt
 function reloadLevelPhoto(L){ L.bg=null; L.svTiles=null; L.bgCanvas=null; L.loading=false; L.source=null; loadPhoto(L); }
 function pvUpdateInfo(){ const L=LEVELS[previewIdx]; if(!L) return;
   const sp=SVSPOTS[L.name], v=L.custom?'eigener Platz':('Ansicht '+(viewOf(L)+1)+'/'+(sp?sp.length:1));
@@ -1064,7 +1070,8 @@ function addPlace(){ const inp=document.getElementById('addrInput'); const a=(in
   levelIndex=LEVELS.length-1; loadPhoto(LEVELS[levelIndex]); inp.value=''; buildCities(); }
 
 function buildCities(){ const box=document.getElementById('cities'); box.innerHTML='';
-  LEVELS.forEach((L,i)=>{ const d=document.createElement('div'); d.className='city'+(i===levelIndex?' on':'');
+  LEVELS.forEach((L,i)=>{ const d=document.createElement('div'); d.className='city';
+    if(i===chosenIdx) d.classList.add('on');
     const sp=SVSPOTS[L.name];
     const viewLbl=L.custom?esc(L.land):('Ansicht '+(viewOf(L)+1)+'/'+(sp?sp.length:1));
     d.title=(L.sv&&L.sv.address)||'';
@@ -1081,8 +1088,12 @@ function buildCities(){ const box=document.getElementById('cities'); box.innerHT
           else { const n=viewOf(L), k=spotKey(L,n); const f=spotFix[k]||{}; f.off=(((f.off||0)+delta)%360+360)%360; spotFix[k]=f; saveJSON('taubenSpotFix',spotFix); applySpot(L); } }
         const LL=LEVELS[i]; LL.bg=null; LL.svTiles=null; LL.bgCanvas=null; LL.loading=false; LL.source=null; loadPhoto(LL); buildCities(); }; });
       d.appendChild(bar); }
-    d.onclick=()=>{ levelIndex=i; loadPhoto(LEVELS[i]); document.querySelectorAll('.city').forEach(x=>x.classList.remove('on')); d.classList.add('on'); renderBoards(); };
-    box.appendChild(d); }); }
+    d.onclick=()=>{ // nochmal tippen hebt die Auswahl wieder auf -> Zufallsstadt
+      if(chosenIdx===i){ chosenIdx=-1; } else { chosenIdx=i; levelIndex=i; loadPhoto(LEVELS[i]); }
+      buildCities(); renderBoards(); updatePlayLabel(); };
+    box.appendChild(d); }); updatePlayLabel(); }
+function updatePlayLabel(){ const b=document.getElementById('playBtn'); if(!b) return;
+  b.textContent = (chosenIdx<0 || !LEVELS[chosenIdx]) ? '▶ Spielen · Zufallsstadt' : ('▶ Spielen · '+LEVELS[chosenIdx].name); }
 
 // Bestenlisten-Tabs
 document.querySelectorAll('.tab').forEach(tb=>tb.onclick=()=>{ document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on')); tb.classList.add('on'); lbScope=tb.dataset.scope; document.getElementById('lbScopeLbl').textContent=tb.textContent; renderBoards(); });
@@ -1107,7 +1118,10 @@ document.getElementById('copyCode').onclick=()=>{ const t=document.getElementByI
   try{ navigator.clipboard.writeText(t.value).then(done,()=>{document.execCommand('copy'); done();}); }catch(e){ try{document.execCommand('copy');}catch(_){} done(); } };
 // Street-View-Key
 
-document.getElementById('playBtn').onclick=()=>{ actx(); newGame(); };
+document.getElementById('playBtn').onclick=()=>{ actx();
+  if(chosenIdx>=0 && LEVELS[chosenIdx]) levelIndex=chosenIdx;
+  else levelIndex=Math.floor(Math.random()*LEVELS.length); // Zufallsstadt
+  newGame(); };
 document.getElementById('againBtn').onclick=()=>{ actx(); newGame(); };
 document.getElementById('menuBtn').onclick=()=>toMenu();
 
