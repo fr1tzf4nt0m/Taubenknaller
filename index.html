@@ -200,7 +200,6 @@
       <div class="badge">9 Landeshauptstädte · Echte Street-View-Fotos</div>
       <div class="sub"><b>Tipp die Tauben an.</b> Weit weg = mehr Punkte, Serien = Combo. Seltene <b>Vögel 🦅🦚</b> und ein zickiger <b>Drache 🐉</b> zahlen fett.<br>Aufpassen: <b>Polizeidrohnen 🚁</b> legen Schutzschilde um Tauben — wer draufhält, zahlt Strafe. Magazin leer? <b>Steinaxt raus ⛏️</b> — Blöcke zerschlagen, jeder Block = 1 Stein. 20 schafft fast keiner. Und wer den <b>goldenen Ball ✨</b> erwischt: 30 Sekunden unendlich Steine.</div>
 
-      <div class="panels">
       <button class="btn play" id="playBtn">▶ Spielen · Zufall</button>
 
       <div class="lbl">Platz wählen <span style="opacity:.55">— ohne Auswahl startet eine Zufallsstadt</span></div>
@@ -502,7 +501,7 @@ function esc(s){ return String(s).replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&
    Game state
    ====================================================================== */
 const MAG=10, MAXA=30;   // MAG = Start-Munition, MAXA = maximal tragbare Steine
-const ROUND=75;          // Rundendauer in Sekunden
+const ROUND=60;          // Rundendauer in Sekunden
 const FREEZE_BUDGET=22000; // max. Zeit, die das Meißeln die Uhr anhalten darf (ms)
 const G={ state:'menu', score:0, hits:0, shots:0, combo:0, bestCombo:0, comboT:0,
   timeLeft:ROUND, lastT:0, wind:0, windTimer:0, groundY:0, cooTimer:0, shakeT:0, flash:0,
