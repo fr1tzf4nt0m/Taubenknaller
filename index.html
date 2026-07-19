@@ -192,6 +192,7 @@
       <div class="lbl">Platz wählen <span style="opacity:.55">— ohne Auswahl startet eine Zufallsstadt</span></div>
       <div class="cities" id="cities"></div>
       <div class="addplace"><input id="addrInput" placeholder="Eigene Adresse, z. B. Hinterholz 8"><button id="addPlaceBtn">+ Platz</button></div>
+      <button class="mini" id="preloadBtn" style="margin:2px 0 10px">📥 Alle Plätze für offline speichern</button>
 
       <div class="panels">
         <details class="panel fold" id="friendsPanel">
@@ -1190,6 +1191,29 @@ function installBranding(){ let url; try{ url=makeIcon(); }catch(e){ return; }
   const tc=document.createElement('meta'); tc.name='theme-color'; tc.content='#ffab2e'; document.head.appendChild(tc);
   const li=document.getElementById('logoImg'); if(li) li.src=url; }
 
+/* ---------- Offline: Service Worker + Plätze vorladen ---------- */
+if('serviceWorker' in navigator && location.protocol.indexOf('http')===0){
+  window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+}
+function preloadAll(){
+  const btn=document.getElementById('preloadBtn'), key=getKey();
+  if(!key){ btn.textContent='⚠️ Kein Foto-Zugang'; return; }
+  const urls=[];
+  LEVELS.forEach(L=>{
+    const sp=SVSPOTS[L.name];
+    if(sp){ sp.forEach((b,n)=>{ const f=spotFix[L.name+'|'+n]||{};
+        const sv={address:(f.address||b.address), heading:((b.heading+(f.off||0))%360+360)%360};
+        for(let i=0;i<TILE_N;i++) urls.push(svTileURL({sv},key, sv.heading+(i-(TILE_N-1)/2)*TILE_SPREAD)); }); }
+    else if(L.sv){ for(let i=0;i<TILE_N;i++) urls.push(svTileURL(L,key,(L.sv.heading||0)+(i-(TILE_N-1)/2)*TILE_SPREAD)); }
+  });
+  const total=urls.length; let done=0;
+  if(!total){ btn.textContent='—'; return; }
+  btn.textContent='📥 lädt 0/'+total;
+  urls.forEach(u=>{ const im=new Image();
+    im.onload=im.onerror=()=>{ done++; btn.textContent = done<total ? ('📥 lädt '+done+'/'+total) : ('✅ '+total+' Bilder offline gespeichert'); };
+    im.src=u; });
+}
+document.getElementById('preloadBtn').onclick=preloadAll;
 document.getElementById('addPlaceBtn').onclick=addPlace;
 document.getElementById('addrInput').addEventListener('keydown',e=>{ if(e.key==='Enter') addPlace(); });
 
