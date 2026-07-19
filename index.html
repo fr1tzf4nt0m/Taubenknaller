@@ -7,6 +7,10 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Taubenknaller">
+<meta name="theme-color" content="#ffab2e">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <title>Taubenknaller – Österreich Edition</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
@@ -1180,7 +1184,16 @@ function makeIcon(){ const c=document.createElement('canvas'); c.width=c.height=
   // lustige Taube frontal, zentriert im Fadenkreuz
   drawIconPigeon(x,CX,CY+4,4.4);
   return c.toDataURL('image/png'); }
-function installBranding(){ let url; try{ url=makeIcon(); }catch(e){ return; }
+// Wenn die Icon-Dateien neben der Seite liegen (GitHub Pages), diese nutzen –
+// sonst (einzelne HTML-Datei) das Icon zur Laufzeit erzeugen.
+function installBranding(){
+  const probe=new Image();
+  probe.onload=()=>{ const li=document.getElementById('logoImg'); if(li) li.src='icon-192.png'; };
+  probe.onerror=()=>generateBranding();
+  probe.src='icon-192.png';
+}
+function generateBranding(){ let url; try{ url=makeIcon(); }catch(e){ return; }
+  document.querySelectorAll('link[rel="manifest"],link[rel="apple-touch-icon"],link[rel="icon"]').forEach(l=>l.remove());
   const add=(rel,extra)=>{ const l=document.createElement('link'); l.rel=rel; if(extra) for(const k in extra) l.setAttribute(k,extra[k]); l.href=url; document.head.appendChild(l); };
   add('apple-touch-icon'); add('icon',{type:'image/png',sizes:'512x512'});
   try{ const here=location.href.split('#')[0];
