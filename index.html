@@ -100,6 +100,16 @@
   #reloadBtn.reloading { background:linear-gradient(#5a6070,#3a4050); color:#dbe6ff; }
   #reloadBtn.low { animation:pulse .7s infinite; }
   @keyframes pulse { 0%,100%{ box-shadow:0 10px 26px rgba(255,150,40,.45);} 50%{ box-shadow:0 10px 34px rgba(255,90,60,.85);} }
+  /* Vollbild-Vorschau zum Einstellen des Ausschnitts */
+  #previewBar { position:absolute; left:50%; transform:translateX(-50%); bottom:20px; z-index:30; display:flex; flex-direction:column; align-items:center; gap:9px; width:min(96vw,700px); }
+  .pvinfo { font-size:12px; color:#fff; background:rgba(10,14,24,.5); backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px);
+    border:1px solid rgba(255,255,255,.16); border-radius:14px; padding:8px 14px; text-align:center; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pvbtns { display:flex; gap:7px; flex-wrap:wrap; justify-content:center; background:rgba(10,14,24,.5); backdrop-filter:blur(22px); -webkit-backdrop-filter:blur(22px);
+    border:1px solid rgba(255,255,255,.18); border-radius:18px; padding:9px 11px; box-shadow:0 14px 40px rgba(0,0,0,.45); }
+  .pvbtns button { cursor:pointer; border:1px solid rgba(255,255,255,.2); background:rgba(255,255,255,.1); color:#fff;
+    border-radius:12px; font-size:16px; font-weight:700; padding:10px 15px; min-width:48px; }
+  .pvbtns button:active { transform:scale(.93); }
+  .pvbtns button.ok { background:linear-gradient(#ffe08a,#ffab2e); color:#241300; border:none; font-size:14px; padding:10px 18px; }
   #homeBtn { position:absolute; left:16px; bottom:22px; z-index:20; cursor:pointer; border:1px solid rgba(255,255,255,.25);
     background:rgba(10,14,24,.5); color:#fff; border-radius:14px; padding:12px 16px; font-size:14px; font-weight:700; backdrop-filter:blur(8px); }
 </style>
@@ -109,6 +119,19 @@
   <canvas id="c"></canvas>
   <button id="reloadBtn" class="hidden">⟳ Nachladen</button>
   <button id="homeBtn" class="hidden">☰ Menü</button>
+
+  <div id="previewBar" class="hidden">
+    <div class="pvinfo" id="pvInfo"></div>
+    <div class="pvbtns">
+      <button data-p="ll" title="45° nach links">⟲</button>
+      <button data-p="l" title="fein nach links">◀</button>
+      <button data-p="s" title="andere Ansicht">⇄</button>
+      <button data-p="e" title="Adresse ändern">✎</button>
+      <button data-p="r" title="fein nach rechts">▶</button>
+      <button data-p="rr" title="45° nach rechts">⟳</button>
+      <button data-p="ok" class="ok">✓ Speichern</button>
+    </div>
+  </div>
 
   <div id="menu" class="overlay">
     <div class="card">
@@ -262,7 +285,7 @@ function viewOf(L){ const sp=SVSPOTS[L.name]; if(!sp) return 0; const v=viewSel[
 const spotKey=(L,n)=>L.name+'|'+n;
 function applySpot(L){ const sp=SVSPOTS[L.name]; if(!sp) return; const n=viewOf(L);
   const b=sp[n], f=spotFix[spotKey(L,n)]||{};
-  L.sv={ address:(f.address||b.address), heading:((b.heading+(f.off||0))%360+360)%360 }; }
+  L.sv={ address:(f.address||b.address), heading:((b.heading+(f.off||0))%360+360)%360, pan:clamp(f.pan||0,-MAX_PAN,MAX_PAN) }; }
 function pickSpot(L){ if(SVSPOTS[L.name]) applySpot(L);
   L.bg=null; L.svTiles=null; L.bgCanvas=null; L.loading=false; L.source=null; }
 
@@ -280,7 +303,7 @@ function loadPhoto(L){
   if(key && L.sv) loadSVpano(L,key); else if(L.sv&&L.sv.lat) geoPhoto(L); else { L.loading=false; L.failed=true; }
 }
 // Mehrere Street-View-Kacheln nebeneinander => scharfes, breites Panorama (deutlich schärfer als 1 Bild)
-const TILE_FOV=45, TILE_SPREAD=38, TILE_N=5;
+const TILE_FOV=45, TILE_SPREAD=38, TILE_N=5, VIEW_FOV=118, MAX_PAN=36;
 // WICHTIG: pitch immer 0 – nur mit waagrechter Kamera bleibt der Horizont beim Zusammensetzen
 // mehrerer Blickrichtungen gerade (sonst kippt/krümmt er) und der Boden bleibt sichtbar.
 function svTileURL(L,key,hd){ const s=L.sv; const loc = s.address? encodeURIComponent(s.address) : (s.lat+','+s.lng);
@@ -300,9 +323,11 @@ function buildSVpano(L){
   const rad=d=>d*Math.PI/180, centers=[];
   for(let i=0;i<N;i++) centers.push((i-(N-1)/2)*TILE_SPREAD);
   const totalFov=TILE_SPREAD*(N-1)+TILE_FOV*0.86, half=TILE_FOV/2*0.93;
+  // Sichtbarer Ausschnitt (enger als das geladene Panorama) => Schwenken ohne Nachladen
+  const maxPan=Math.max(0,(totalFov-VIEW_FOV)/2), pan=clamp(L.sv.pan||0,-maxPan,maxPan);
   o.fillStyle='#0c1422'; o.fillRect(0,0,W,H);
   for(let x=0;x<W;x++){
-    const th=(x/W-0.5)*totalFov; let cand=[];
+    const th=pan+(x/W-0.5)*VIEW_FOV; let cand=[];
     for(let i=0;i<N;i++){ const d=Math.abs(th-centers[i]); if(d<half) cand.push([d,i]); }
     if(!cand.length) continue; cand.sort((a,b)=>a[0]-b[0]); cand=cand.slice(0,2);
     let wsum=0; const ws=cand.map(c=>{ const w=Math.max(0.001,1-c[0]/half); wsum+=w; return w; });
@@ -920,7 +945,7 @@ function tick(){ const t=now(); let dt=t-G.lastT; G.lastT=t; if(dt>60)dt=60;
   render(); requestAnimationFrame(tick);
 }
 function render(){
-  if(G.state==='menu'){ drawBackground(); drawVignette(); return; }
+  if(G.state==='menu'||G.state==='preview'){ drawBackground(); drawVignette(); return; }
   ctx.save(); if(G.shakeT>0){ const s=G.shakeT/320*9; ctx.translate(rand(-s,s),rand(-s,s)); }
   drawBackground();
   const sorted=[...G.pigeons].sort((a,b)=>b.depth-a.depth); for(const p of sorted) drawPigeon(p);
@@ -961,9 +986,42 @@ function endGame(){
 let custom=loadJSON('taubenPlaces',[]);
 const BASE_N=LEVELS.length;
 function makeCustomLevel(c){ return { name:c.name, land:'eigener Platz', wiki:[], custom:true,
-  sv:{address:c.address, heading:c.heading||0, pitch:c.pitch||8, fov:110},
+  sv:{address:c.address, heading:c.heading||0, pan:clamp(c.pan||0,-MAX_PAN,MAX_PAN)},
   sky:['#7fb9dd','#bcdaec','#e9f4fb'], haze:'#e3f0f8', build:'#c9b892', roof:'#7d4d33', ground:'#9a8b66', feat:{}, mon:monWien }; }
 function syncCustom(){ LEVELS.length=BASE_N; custom.forEach(c=>LEVELS.push(makeCustomLevel(c))); if(levelIndex>=LEVELS.length) levelIndex=0; }
+/* ---------- Vollbild-Vorschau: Ausschnitt einstellen, wird dauerhaft gespeichert ---------- */
+let previewIdx=0;
+function reloadLevelPhoto(L){ L.bg=null; L.svTiles=null; L.bgCanvas=null; L.loading=false; L.source=null; loadPhoto(L); }
+function pvUpdateInfo(){ const L=LEVELS[previewIdx]; if(!L) return;
+  const sp=SVSPOTS[L.name], v=L.custom?'eigener Platz':('Ansicht '+(viewOf(L)+1)+'/'+(sp?sp.length:1));
+  const pan=Math.round((L.sv&&L.sv.pan)||0);
+  document.getElementById('pvInfo').textContent=L.name+' · '+v+' · '+((L.sv&&L.sv.address)||'')+(pan?'  ('+(pan>0?'+':'')+pan+'°)':''); }
+function openPreview(i){ previewIdx=i; levelIndex=i; G.state='preview';
+  document.getElementById('menu').classList.add('hidden');
+  document.getElementById('previewBar').classList.remove('hidden');
+  loadPhoto(LEVELS[i]); pvUpdateInfo(); }
+function closePreview(){ G.state='menu';
+  document.getElementById('previewBar').classList.add('hidden');
+  document.getElementById('menu').classList.remove('hidden'); buildCities(); }
+function pvAction(a){ const L=LEVELS[previewIdx]; if(!L) return;
+  const isC=L.custom, ci=previewIdx-BASE_N;
+  const getFix=()=> isC? (custom[ci]||{}) : (spotFix[spotKey(L,viewOf(L))]||(spotFix[spotKey(L,viewOf(L))]={}));
+  const save=()=>{ if(isC){ saveJSON('taubenPlaces',custom); syncCustom(); } else { saveJSON('taubenSpotFix',spotFix); applySpot(L); } };
+  if(a==='ok'){ closePreview(); return; }
+  if(a==='s'){ if(isC) return; const sp=SVSPOTS[L.name]||[0,0]; viewSel[L.name]=(viewOf(L)+1)%sp.length;
+    saveJSON('taubenViewSel',viewSel); applySpot(L); reloadLevelPhoto(L); pvUpdateInfo(); return; }
+  if(a==='e'){ const cur=(L.sv&&L.sv.address)||'';
+    const na=prompt('Adresse für '+L.name+':',cur); if(na===null||!na.trim()) return;
+    const f=getFix(); f.address=na.trim(); save();
+    const LL=LEVELS[previewIdx]; reloadLevelPhoto(LL); pvUpdateInfo(); return; }
+  if(a==='ll'||a==='rr'){ const d=(a==='ll'?-45:45); const f=getFix();
+    if(isC){ f.heading=((f.heading||0)+d+360)%360; } else { f.off=(((f.off||0)+d)%360+360)%360; }
+    save(); reloadLevelPhoto(LEVELS[previewIdx]); pvUpdateInfo(); return; }
+  // Fein-Schwenk im geladenen Panorama – ohne Nachladen, sofort sichtbar
+  const d=(a==='l'?-5:5); const f=getFix(); f.pan=clamp((f.pan||0)+d,-MAX_PAN,MAX_PAN); save();
+  const LL=LEVELS[previewIdx]; if(LL.sv) LL.sv.pan=f.pan; LL.bgCanvas=null; pvUpdateInfo(); }
+document.querySelectorAll('#previewBar .pvbtns button').forEach(b=>{ b.onclick=(e)=>{ e.stopPropagation(); pvAction(b.dataset.p); }; });
+
 function addPlace(){ const inp=document.getElementById('addrInput'); const a=(inp.value||'').trim(); if(!a) return;
   const nm=a.split(',')[0].trim().slice(0,16)||'Platz';
   custom.push({name:nm,address:a,heading:0,pitch:8}); saveJSON('taubenPlaces',custom); syncCustom();
@@ -976,15 +1034,12 @@ function buildCities(){ const box=document.getElementById('cities'); box.innerHT
     d.title=(L.sv&&L.sv.address)||'';
     d.innerHTML=esc(L.name)+'<span class="land">'+viewLbl+'</span>'+((L.bg||L.svTiles)?'<span class="ph">'+(L.source==='sv'?'🛰️':'📷')+'</span>':'');
     { const bar=document.createElement('div'); bar.className='ctl';
-      bar.innerHTML='<button data-a="l" title="Blick drehen">◀</button><button data-a="r" title="Blick drehen">▶</button>'
-        +(L.custom?'<button data-a="x" title="löschen">✕</button>':'<button data-a="s" title="andere Ansicht">⇄</button><button data-a="e" title="Adresse ändern">✎</button>');
+      bar.innerHTML='<button data-a="v" title="Vorschau &amp; Ausschnitt einstellen">👁</button><button data-a="l" title="Blick drehen">◀</button><button data-a="r" title="Blick drehen">▶</button>'
+        +(L.custom?'<button data-a="x" title="löschen">✕</button>':'<button data-a="s" title="andere Ansicht">⇄</button>');
       bar.querySelectorAll('button').forEach(b=>{ b.onclick=(ev)=>{ ev.stopPropagation(); const a=b.dataset.a;
+        if(a==='v'){ openPreview(i); return; }
         if(a==='x'){ const ci=i-BASE_N; if(ci<0||!custom[ci])return; custom.splice(ci,1); saveJSON('taubenPlaces',custom); syncCustom(); buildCities(); return; }
         if(a==='s'){ const sp=SVSPOTS[L.name]||[0,0]; viewSel[L.name]=(viewOf(L)+1)%sp.length; saveJSON('taubenViewSel',viewSel); applySpot(L); }
-        else if(a==='e'){ const n=viewOf(L); const cur=(L.sv&&L.sv.address)||'';
-          const na=prompt('Adresse für '+L.name+' – Ansicht '+(n+1)+':',cur);
-          if(na===null||!na.trim()) return; const k=spotKey(L,n); spotFix[k]={...(spotFix[k]||{}),address:na.trim()};
-          saveJSON('taubenSpotFix',spotFix); applySpot(L); }
         else { const delta=(a==='l'?-25:25);
           if(L.custom){ const ci=i-BASE_N; if(ci<0||!custom[ci])return; custom[ci].heading=((custom[ci].heading||0)+delta+360)%360; saveJSON('taubenPlaces',custom); syncCustom(); }
           else { const n=viewOf(L), k=spotKey(L,n); const f=spotFix[k]||{}; f.off=(((f.off||0)+delta)%360+360)%360; spotFix[k]=f; saveJSON('taubenSpotFix',spotFix); applySpot(L); } }
