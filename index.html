@@ -501,18 +501,20 @@ function esc(s){ return String(s).replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&
 /* ======================================================================
    Game state
    ====================================================================== */
-const MAG=10, MAXA=30; // MAG = Start-Munition, MAXA = maximal tragbare Steine
+const MAG=10, MAXA=30;   // MAG = Start-Munition, MAXA = maximal tragbare Steine
+const ROUND=75;          // Rundendauer in Sekunden
+const FREEZE_BUDGET=22000; // max. Zeit, die das Meißeln die Uhr anhalten darf (ms)
 const G={ state:'menu', score:0, hits:0, shots:0, combo:0, bestCombo:0, comboT:0,
-  timeLeft:90, lastT:0, wind:0, windTimer:0, groundY:0, cooTimer:0, shakeT:0, flash:0,
+  timeLeft:ROUND, lastT:0, wind:0, windTimer:0, groundY:0, cooTimer:0, shakeT:0, flash:0,
   pigeons:[], rares:[], stones:[], particles:[], rings:[], floaters:[], drones:[],
-  droneTimer:0, gold:null, goldDone:false, goldTimer:0, infUntil:0, chisel:null,
+  droneTimer:0, gold:null, goldDone:false, goldTimer:0, infUntil:0, chisel:null, freezeLeft:FREEZE_BUDGET,
   anchor:{x:0,y:0}, cross:{x:0,y:0}, ammo:MAG, reloading:false, reloadT:0, shotCd:0, slingT:0, slingTarget:null };
 const isInf=()=>now()<G.infUntil;
 
 function newGame(){
   ensureProfile();
   G.state='playing'; G.score=0; G.hits=0; G.shots=0; G.combo=0; G.bestCombo=0; G.comboT=0;
-  G.timeLeft=90; G.pigeons=[]; G.rares=[]; G.stones=[]; G.particles=[]; G.rings=[]; G.floaters=[];
+  G.timeLeft=ROUND; G.freezeLeft=FREEZE_BUDGET; G.pigeons=[]; G.rares=[]; G.stones=[]; G.particles=[]; G.rings=[]; G.floaters=[];
   G.wind=rand(-.5,.5); G.windTimer=0; G.ammo=MAG; G.reloading=false; G.reloadT=0; G.shotCd=0; G.cooTimer=0; G.shakeT=0; G.slingT=0;
   G.drones=[]; G.droneTimer=rand(9000,16000); G.gold=null; G.goldDone=false; G.goldTimer=rand(2500,12000); G.infUntil=0; G.chisel=null;
   G.cross.x=W/2; G.cross.y=H/2;
@@ -715,7 +717,7 @@ function drawDrone(d){ ctx.save(); ctx.translate(d.x,d.y); const bl=(Math.floor(
 /* ---------- Goldener Ball: 30s unendlich Munition ---------- */
 function spawnGold(){ G.gold={x:rand(W*0.2,W*0.8),y:rand(H*0.2,H*0.5),vx:rand(3.4,5.2)*(Math.random()<0.5?-1:1),vy:rand(2.8,4.4)*(Math.random()<0.5?-1:1),r:11,t:0,life:9000,alive:true}; }
 function updateGold(dt){
-  if(!G.goldDone && !G.gold){ G.goldTimer-=dt; if(G.goldTimer<=0 && (90-G.timeLeft)<20) spawnGold(); }
+  if(!G.goldDone && !G.gold){ G.goldTimer-=dt; if(G.goldTimer<=0 && (ROUND-G.timeLeft)<20) spawnGold(); }
   const g=G.gold; if(!g) return; g.t+=dt;
   g.vx+=Math.sin(g.t*0.004)*0.06; g.vy+=Math.cos(g.t*0.005)*0.07;
   g.vx=clamp(g.vx,-6.5,6.5); g.vy=clamp(g.vy,-5.5,5.5);
@@ -780,7 +782,7 @@ function updateChisel(dt){ const c=G.chisel; if(!c) return; c.t-=dt;
   for(const k of c.chunks){ k.vy+=0.0016*dt; k.x+=k.vx*dt; k.y+=k.vy*dt; k.rot+=k.vr*dt; k.life-=dt; }
   c.chunks=c.chunks.filter(k=>k.life>0);
   for(const cr of c.cracks) cr.life-=dt; c.cracks=c.cracks.filter(cr=>cr.life>0);
-  if(c.t<=0){ const gain=clamp(c.stones,3,MAXA); G.ammo=gain; G.chisel=null;
+  if(c.t<=0){ const gain=clamp(c.stones,5,MAXA); G.ammo=gain; G.chisel=null;
     addFloater(W/2,H*0.40,'+'+gain+' Steine!','#ffcf6b'); sndBonus(); } }
 function chiselSwipe(x,y){ const c=G.chisel; if(!c) return; const ct=chiselCenter();
   if(c.last){ const d=dist(x,y,c.last.x,c.last.y);
@@ -1013,7 +1015,13 @@ document.getElementById('homeBtn').addEventListener('click',e=>{ e.stopPropagati
 
 /* loop */
 function tick(){ const t=now(); let dt=t-G.lastT; G.lastT=t; if(dt>60)dt=60;
-  if(G.state==='playing' && G.chisel){ updateChisel(dt); updateFx(dt); render(); requestAnimationFrame(tick); return; } // Uhr steht still
+  // Meißeln: Uhr steht still – aber nur so lange das Zeit-Guthaben reicht,
+  // sonst könnte man durch ständiges Nachladen die Runde endlos verlängern.
+  if(G.state==='playing' && G.chisel){
+    if(G.freezeLeft>0){ G.freezeLeft-=dt; }
+    else { G.timeLeft-=dt/1000; if(G.timeLeft<=0){ G.chisel=null; endGame(); render(); requestAnimationFrame(tick); return; } }
+    updateChisel(dt); updateFx(dt); render(); requestAnimationFrame(tick); return;
+  }
   if(G.state==='playing'){ G.timeLeft-=dt/1000; G.windTimer-=dt; if(G.windTimer<=0){ G.wind=rand(-.6,.6); G.windTimer=rand(6000,12000); }
     updateDrones(dt); updateGold(dt);
     if(G.slingT>0){ G.slingT-=dt*0.006; if(G.slingT<0)G.slingT=0; } if(G.flash>0){ G.flash-=dt*0.006; if(G.flash<0)G.flash=0; }
