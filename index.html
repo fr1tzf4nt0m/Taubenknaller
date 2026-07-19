@@ -237,18 +237,23 @@ const LEVELS=[
 let levelIndex=0;
 // Zwei Street-View-Standorte je Stadt – bei jedem Spielstart wird abgewechselt
 const SVSPOTS={
-  "Wien":[{lat:48.20805,lng:16.3736,heading:328,pitch:16,fov:110},{lat:48.1854,lng:16.3124,heading:209,pitch:8,fov:110}],
-  "St. Pölten":[{lat:48.2047,lng:15.6252,heading:137,pitch:10,fov:110},{lat:48.20505,lng:15.6266,heading:143,pitch:10,fov:110}],
-  "Linz":[{lat:48.3059,lng:14.286,heading:21,pitch:12,fov:110},{lat:48.3174,lng:14.2533,heading:150,pitch:4,fov:108}],
-  "Salzburg":[{lat:47.79812,lng:13.04655,heading:112,pitch:14,fov:105},{lat:47.7969,lng:13.04745,heading:179,pitch:22,fov:100}],
-  "Innsbruck":[{lat:47.26820,lng:11.39300,heading:20,pitch:16,fov:105},{lat:47.27020,lng:11.39230,heading:320,pitch:8,fov:110}],
-  "Bregenz":[{lat:47.50485,lng:9.74812,heading:49,pitch:12,fov:108},{lat:47.5033,lng:9.7477,heading:300,pitch:4,fov:112}],
-  "Klagenfurt":[{lat:46.62330,lng:14.30570,heading:318,pitch:10,fov:108},{lat:46.62230,lng:14.27180,heading:265,pitch:4,fov:112}],
-  "Graz":[{lat:47.07095,lng:15.43805,heading:349,pitch:16,fov:92},{lat:47.07175,lng:15.4352,heading:270,pitch:6,fov:108}],
-  "Eisenstadt":[{lat:47.84567,lng:16.5244,heading:318,pitch:10,fov:110},{lat:47.84665,lng:16.523,heading:135,pitch:8,fov:110}]
+  // Adressen statt geratener Koordinaten: Google trifft damit verlässlich einen Außen-Panoramapunkt
+  "Wien":[{address:"Graben 14, 1010 Wien, Österreich",heading:115},{address:"Schloss Schönbrunn, 1130 Wien, Österreich",heading:209}],
+  "St. Pölten":[{address:"Rathausplatz 1, 3100 St. Pölten, Österreich",heading:180},{address:"Herrenplatz, 3100 St. Pölten, Österreich",heading:10}],
+  "Linz":[{address:"Hauptplatz 1, 4020 Linz, Österreich",heading:0},{address:"Pöstlingberg 1, 4040 Linz, Österreich",heading:150}],
+  "Salzburg":[{address:"Residenzplatz 1, 5020 Salzburg, Österreich",heading:112},{address:"Kapitelplatz 1, 5020 Salzburg, Österreich",heading:173}],
+  "Innsbruck":[{address:"Herzog-Friedrich-Straße 15, 6020 Innsbruck, Österreich",heading:20},{address:"Innbrücke, 6020 Innsbruck, Österreich",heading:320}],
+  "Bregenz":[{address:"Martinsgasse 3b, 6900 Bregenz, Österreich",heading:45},{address:"Seepromenade 2, 6900 Bregenz, Österreich",heading:300}],
+  "Klagenfurt":[{address:"Neuer Platz 1, 9020 Klagenfurt am Wörthersee, Österreich",heading:318},{address:"Villacher Straße 239, 9020 Klagenfurt am Wörthersee, Österreich",heading:265}],
+  "Graz":[{address:"Hauptplatz 1, 8010 Graz, Österreich",heading:349},{address:"Lendkai 1, 8020 Graz, Österreich",heading:270}],
+  "Eisenstadt":[{address:"Esterhazyplatz 5, 7000 Eisenstadt, Österreich",heading:318},{address:"Glorietteallee 1, 7000 Eisenstadt, Österreich",heading:135}]
 };
 let spotTurn=0;
-function pickSpot(L){ const sp=SVSPOTS[L.name]; if(!sp) return; L.sv=sp[(spotTurn)%sp.length]; L.bg=null; L.svTiles=null; L.bgCanvas=null; L.loading=false; L.source=null; }
+let headFix=loadJSON('taubenHeadFix',{});
+function applySpot(L,idx){ const sp=SVSPOTS[L.name]; if(!sp) return; const n=((idx%sp.length)+sp.length)%sp.length;
+  L.spotIdx=n; const b=sp[n]; L.sv={...b, heading:((b.heading+(headFix[L.name+'|'+n]||0))%360+360)%360}; }
+function pickSpot(L){ if(SVSPOTS[L.name]) applySpot(L,spotTurn);
+  L.bg=null; L.svTiles=null; L.bgCanvas=null; L.loading=false; L.source=null; }
 
 /* ---------- Foto-Loader: Street View (mit Key) → Wikimedia → Zeichnung ---------- */
 // Key XOR-verschleiert – der Klartext-String taucht im Quelltext nicht auf (GitHub-Secret-Scanner/Scraper greifen ins Leere)
@@ -265,8 +270,10 @@ function loadPhoto(L){
 }
 // Mehrere Street-View-Kacheln nebeneinander => scharfes, breites Panorama (deutlich schärfer als 1 Bild)
 const TILE_FOV=45, TILE_SPREAD=38, TILE_N=5;
+// WICHTIG: pitch immer 0 – nur mit waagrechter Kamera bleibt der Horizont beim Zusammensetzen
+// mehrerer Blickrichtungen gerade (sonst kippt/krümmt er) und der Boden bleibt sichtbar.
 function svTileURL(L,key,hd){ const s=L.sv; const loc = s.address? encodeURIComponent(s.address) : (s.lat+','+s.lng);
-  return 'https://maps.googleapis.com/maps/api/streetview?size=640x640&scale=2&location='+loc+'&fov='+TILE_FOV+'&heading='+((hd%360+360)%360)+'&pitch='+(s.pitch||8)+'&source=outdoor&key='+encodeURIComponent(key); }
+  return 'https://maps.googleapis.com/maps/api/streetview?size=640x640&scale=2&location='+loc+'&fov='+TILE_FOV+'&heading='+((hd%360+360)%360)+'&pitch=0&source=outdoor&key='+encodeURIComponent(key); }
 function loadSVpano(L,key){
   const base=L.sv.heading||0, imgs=new Array(TILE_N); let cnt=0, failed=false;
   const fail=()=>{ if(failed)return; failed=true; if(L.sv.lat) geoPhoto(L); else { L.loading=false; L.failed=true; } };
@@ -292,9 +299,9 @@ function buildSVpano(L){
       const im=L.svTiles[cand[k][1]]; if(!im||!im.naturalWidth) continue;
       const F=(im.naturalWidth/2)/Math.tan(rad(TILE_FOV)/2), dth=rad(th-centers[cand[k][1]]);
       const sx=im.naturalWidth/2 + F*Math.tan(dth); if(sx<0||sx>=im.naturalWidth) continue;
-      const destH=H/Math.max(0.6,Math.cos(dth));
+      const destH=H/Math.max(0.6,Math.cos(dth)), vo=(L.sv.vs||0)*H;
       o.globalAlpha=ws[k]/wsum;
-      o.drawImage(im, Math.min(im.naturalWidth-1,Math.max(0,Math.floor(sx))),0,1,im.naturalHeight, x,(H-destH)/2,1,destH);
+      o.drawImage(im, Math.min(im.naturalWidth-1,Math.max(0,Math.floor(sx))),0,1,im.naturalHeight, x,(H-destH)/2+vo,1,destH);
     }
   }
   o.globalAlpha=1;
@@ -390,7 +397,7 @@ function esc(s){ return String(s).replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&
 /* ======================================================================
    Game state
    ====================================================================== */
-const MAG=10;
+const MAG=10, MAXA=30; // MAG = Start-Munition, MAXA = maximal tragbare Steine
 const G={ state:'menu', score:0, hits:0, shots:0, combo:0, bestCombo:0, comboT:0,
   timeLeft:90, lastT:0, wind:0, windTimer:0, groundY:0, cooTimer:0, shakeT:0, flash:0,
   pigeons:[], rares:[], stones:[], particles:[], rings:[], floaters:[], drones:[],
@@ -622,23 +629,22 @@ function drawGold(){ const g=G.gold; if(!g) return; const p=0.6+0.4*Math.sin(g.t
 function sndBreak(){ const a=actx(); if(!a)return; beep(160,.14,'square',.16,60);
   const nb=a.createBuffer(1,3000,a.sampleRate),d=nb.getChannelData(0); for(let i=0;i<3000;i++)d[i]=(Math.random()*2-1)*(1-i/3000);
   const src=a.createBufferSource(),g=a.createGain(); src.buffer=nb; g.gain.value=.14; g.gain.exponentialRampToValueAtTime(.0001,a.currentTime+.2); src.connect(g); g.connect(a.destination); src.start(); }
-// Minecraft-artiger Steinblock mit Pixel-Textur und Zerstörungs-Rissen
-function mcBlock(cx,cy,s,progress,seed){
-  const x0=cx-s/2, y0=cy-s/2, u=s/12, e=Math.max(3,s/14);
-  ctx.fillStyle='#8b8b8b'; ctx.fillRect(x0,y0,s,s);
-  for(let gy=0;gy<12;gy++) for(let gx=0;gx<12;gx++){
-    const h=(gx*7+gy*13+seed*5)%11;
-    if(h<3) ctx.fillStyle='#767676'; else if(h<5) ctx.fillStyle='#9d9d9d'; else if(h<6) ctx.fillStyle='#6a6a6a'; else continue;
-    ctx.fillRect(x0+gx*u,y0+gy*u,u+0.6,u+0.6); }
-  ctx.fillStyle='rgba(255,255,255,.28)'; ctx.fillRect(x0,y0,s,e);
-  ctx.fillStyle='rgba(255,255,255,.15)'; ctx.fillRect(x0,y0,e,s);
-  ctx.fillStyle='rgba(0,0,0,.32)'; ctx.fillRect(x0,y0+s-e,s,e);
-  ctx.fillStyle='rgba(0,0,0,.22)'; ctx.fillRect(x0+s-e,y0,e,s);
-  if(progress>0){ ctx.strokeStyle='rgba(12,12,12,'+(0.5+0.4*progress)+')'; ctx.lineWidth=Math.max(2,s*0.028); ctx.lineCap='square';
-    const n=Math.max(1,Math.ceil(progress*7));
-    for(let i=0;i<n;i++){ const a=(i*2.399+seed)%6.283; let px=cx,py=cy; ctx.beginPath(); ctx.moveTo(px,py);
-      for(let k=0;k<3;k++){ px+=Math.cos(a+k*0.55-0.3)*s*0.16; py+=Math.sin(a+k*0.55-0.3)*s*0.16; ctx.lineTo(px,py); } ctx.stroke(); } }
+// Ein einzelner Minecraft-Steinblock (Voxel-Zelle)
+function mcCell(x,y,u,seed){
+  const e=Math.max(2,u*0.13);
+  ctx.fillStyle='#8b8b8b'; ctx.fillRect(x,y,u+0.6,u+0.6);
+  for(let a=0;a<5;a++){ const h=(a*5+seed*3)%9;
+    ctx.fillStyle=h<3?'#767676':(h<6?'#9d9d9d':'#6a6a6a');
+    ctx.fillRect(x+((a*3+seed)%3)*(u/3), y+((a*7+seed)%3)*(u/3), u/3+0.5, u/3+0.5); }
+  ctx.fillStyle='rgba(255,255,255,.26)'; ctx.fillRect(x,y,u,e);
+  ctx.fillStyle='rgba(255,255,255,.13)'; ctx.fillRect(x,y,e,u);
+  ctx.fillStyle='rgba(0,0,0,.30)'; ctx.fillRect(x,y+u-e,u,e);
+  ctx.fillStyle='rgba(0,0,0,.20)'; ctx.fillRect(x+u-e,y,e,u);
+  ctx.strokeStyle='rgba(0,0,0,.22)'; ctx.lineWidth=1; ctx.strokeRect(x+.5,y+.5,u-1,u-1);
 }
+// Wegfliegender Steinblock
+function drawChunk(k){ ctx.save(); ctx.translate(k.x,k.y); ctx.rotate(k.rot); ctx.globalAlpha=clamp(k.life/k.max,0,1);
+  mcCell(-k.u/2,-k.u/2,k.u,k.seed); ctx.restore(); ctx.globalAlpha=1; }
 // Steinaxt im Pixel-Look, schwingt beim Wischen
 function mcAxe(x,y,swing){
   ctx.save(); ctx.translate(x,y); ctx.rotate(-0.85+swing*1.15); const u=5;
@@ -651,37 +657,80 @@ function mcAxe(x,y,swing){
   ctx.fillStyle='#8f8f8f'; ctx.fillRect(-u*4.5,-u*2.6,u*1.1,u*2);
   ctx.fillStyle='#8f8f8f'; ctx.fillRect(u*3.4,-u*2.6,u*1.1,u*2);
   ctx.restore(); }
-function chiselCenter(){ return {x:W*0.5, y:H*0.54}; }
+const GRID=13;
+function chiselCenter(){ return {x:W*0.5, y:H*0.53}; }
+function cellPos(c,ct,i,j){ return {x:ct.x+(i-(GRID-1)/2)*c.u-c.u/2, y:ct.y+(j-(GRID-1)/2)*c.u-c.u/2}; }
 function startChisel(){ if(G.chisel||isInf()) return;
-  G.chisel={t:5600,blocks:0,need:220,acc:0,seed:3,size:Math.min(150,Math.max(92,W*0.15)),last:null,swing:0,shake:0}; sndReload(); }
+  const R=Math.min(Math.min(W,H)*0.36,320), u=(R*2)/GRID, cells=[];
+  for(let i=0;i<GRID;i++){ cells[i]=[]; for(let j=0;j<GRID;j++){
+    const di=i-(GRID-1)/2, dj=j-(GRID-1)/2, jitter=(((i*7+j*13)%5)/5)*0.9;
+    cells[i][j]= Math.hypot(di,dj) <= (GRID/2-0.35-jitter*0.5); } }
+  G.chisel={t:5600,stones:0,need:190,acc:0,seed:3,R,u,cells,chunks:[],cracks:[],last:null,swing:0,shake:0}; sndReload(); }
+function aliveCells(c){ const out=[]; for(let i=0;i<GRID;i++) for(let j=0;j<GRID;j++) if(c.cells[i][j]) out.push([i,j]); return out; }
+function isEdge(c,i,j){ for(const d of [[1,0],[-1,0],[0,1],[0,-1]]){ const a=i+d[0],b=j+d[1];
+    if(a<0||b<0||a>=GRID||b>=GRID||!c.cells[a][b]) return true; } return false; }
 function updateChisel(dt){ const c=G.chisel; if(!c) return; c.t-=dt;
   c.swing=Math.max(0,c.swing-dt*0.006); c.shake=Math.max(0,c.shake-dt);
-  if(c.t<=0){ const gain=clamp(c.blocks,3,20); G.ammo=gain; G.chisel=null;
-    addFloater(W/2,H*0.42,'+'+gain+' Steine!','#ffcf6b'); sndBonus(); } }
+  for(const k of c.chunks){ k.vy+=0.0016*dt; k.x+=k.vx*dt; k.y+=k.vy*dt; k.rot+=k.vr*dt; k.life-=dt; }
+  c.chunks=c.chunks.filter(k=>k.life>0);
+  for(const cr of c.cracks) cr.life-=dt; c.cracks=c.cracks.filter(cr=>cr.life>0);
+  if(c.t<=0){ const gain=clamp(c.stones,3,MAXA); G.ammo=gain; G.chisel=null;
+    addFloater(W/2,H*0.40,'+'+gain+' Steine!','#ffcf6b'); sndBonus(); } }
 function chiselSwipe(x,y){ const c=G.chisel; if(!c) return; const ct=chiselCenter();
   if(c.last){ const d=dist(x,y,c.last.x,c.last.y);
-    const inside=Math.abs(x-ct.x)<c.size*0.75 && Math.abs(y-ct.y)<c.size*0.75;
-    if(inside && d>3 && d<320){ c.acc+=d; c.swing=1; if(Math.random()<0.45) sndChip();
+    // Welche Zelle liegt unter dem Finger?
+    const gi=Math.round((x-ct.x)/c.u+(GRID-1)/2), gj=Math.round((y-ct.y)/c.u+(GRID-1)/2);
+    const onRock = gi>=0&&gj>=0&&gi<GRID&&gj<GRID&&c.cells[gi][gj];
+    if(onRock && d>3 && d<320){ c.acc+=d; c.swing=1; if(Math.random()<0.45) sndChip();
+      // Riss genau an der Wischstelle
+      const lastCr=c.cracks[c.cracks.length-1];
+      if(!lastCr || dist(x,y,lastCr.x,lastCr.y)>c.u*0.55){
+        c.cracks.push({x,y,a:rand(0,6.283),life:2600,max:2600}); if(c.cracks.length>14) c.cracks.shift(); }
       for(let i=0;i<2;i++){ const a=rand(0,7),sp=rand(0.12,0.45);
         G.particles.push({x:x,y:y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-0.2,life:rand(280,650),max:650,color:['#9d9d9d','#767676','#b8b8b8'][Math.floor(Math.random()*3)],r:rand(2,4),sq:true}); }
-      while(c.acc>=c.need){ c.acc-=c.need; c.blocks++; c.need+=55; c.seed=(c.seed*7+13)%97;
-        c.size=Math.max(46,c.size*0.94); c.shake=200; sndBreak();
-        for(let i=0;i<16;i++){ const a=rand(0,7),sp=rand(0.15,0.62);
-          G.particles.push({x:ct.x,y:ct.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-0.28,life:rand(400,950),max:950,color:['#9d9d9d','#6a6a6a','#c2c2c2'][Math.floor(Math.random()*3)],r:rand(2.5,5),sq:true}); } } } }
+      while(c.acc>=c.need){ c.acc-=c.need; c.stones++; c.need+=38; c.seed=(c.seed*7+13)%97; c.shake=220; sndBreak();
+        // Block bricht dort heraus, wo gewischt wurde (nächste Randzelle)
+        const al=aliveCells(c).filter(p=>isEdge(c,p[0],p[1]));
+        if(al.length){
+          let best=al[0], bd=1e9;
+          for(const p of al){ const q=cellPos(c,ct,p[0],p[1]); const dd=dist(x,y,q.x+c.u/2,q.y+c.u/2); if(dd<bd){bd=dd;best=p;} }
+          const q=cellPos(c,ct,best[0],best[1]); c.cells[best[0]][best[1]]=false;
+          const ang=Math.atan2(q.y+c.u/2-ct.y, q.x+c.u/2-ct.x);
+          c.chunks.push({x:q.x+c.u/2,y:q.y+c.u/2,vx:Math.cos(ang)*rand(0.18,0.42),vy:Math.sin(ang)*rand(0.16,0.38)-0.24,
+            rot:rand(0,6.283),vr:rand(-0.007,0.007),u:c.u,seed:(c.seed*3)%9,life:1200,max:1200});
+          for(let i=0;i<12;i++){ const aa=rand(0,7),sp=rand(0.15,0.6);
+            G.particles.push({x:q.x+c.u/2,y:q.y+c.u/2,vx:Math.cos(aa)*sp,vy:Math.sin(aa)*sp-0.25,life:rand(400,900),max:900,color:['#9d9d9d','#6a6a6a','#c2c2c2'][Math.floor(Math.random()*3)],r:rand(2.5,5),sq:true}); }
+        }
+        c.cracks=[]; } } }
   c.last={x,y}; }
 function drawChisel(){ const c=G.chisel; if(!c) return; const ct=chiselCenter();
   ctx.fillStyle='rgba(4,8,16,.66)'; ctx.fillRect(0,0,W,H);
-  const sh=c.shake>0?(c.shake/200)*6:0;
-  mcBlock(ct.x+rand(-sh,sh), ct.y+rand(-sh,sh), c.size, clamp(c.acc/c.need,0,1), c.seed);
+  const sh=c.shake>0?(c.shake/220)*8:0, ox=rand(-sh,sh), oy=rand(-sh,sh);
+  for(const k of c.chunks) drawChunk(k);
+  // Bodenschatten unter dem Felsen
+  ctx.fillStyle='rgba(0,0,0,.35)'; ctx.beginPath(); ctx.ellipse(ct.x,ct.y+c.R*0.98,c.R*0.85,c.R*0.16,0,0,7); ctx.fill();
+  // Voxel-Felsen
+  ctx.save(); ctx.translate(ox,oy);
+  for(let i=0;i<GRID;i++) for(let j=0;j<GRID;j++){ if(!c.cells[i][j]) continue;
+    const q=cellPos(c,ct,i,j); mcCell(q.x,q.y,c.u,(i*3+j*7)%9); }
+  // Risse genau dort, wo gewischt wurde
+  const prg=clamp(c.acc/c.need,0,1);
+  for(const cr of c.cracks){ const f=clamp(cr.life/cr.max,0,1), s=0.45+0.55*prg;
+    ctx.strokeStyle='rgba(14,14,14,'+(0.45+0.45*prg)*f+')'; ctx.lineWidth=Math.max(2,c.u*0.17); ctx.lineCap='round';
+    for(let b=0;b<3;b++){ const a=cr.a+b*2.094; let px=cr.x,py=cr.y; ctx.beginPath(); ctx.moveTo(px,py);
+      for(let k2=1;k2<=3;k2++){ const aa=a+Math.sin(k2*2.7+b)*0.5;
+        px+=Math.cos(aa)*c.u*0.6*s; py+=Math.sin(aa)*c.u*0.6*s; ctx.lineTo(px,py); } ctx.stroke(); }
+    if(prg>0.7){ ctx.fillStyle='rgba(245,235,205,'+((prg-0.7)/0.3*0.35*f)+')'; ctx.beginPath(); ctx.arc(cr.x,cr.y,c.u*0.5,0,7); ctx.fill(); } }
+  ctx.restore();
   mcAxe(G.cross.x,G.cross.y,c.swing);
   ctx.textAlign='center'; ctx.textBaseline='middle';
   ctx.font='800 '+Math.min(40,W*0.06)+'px system-ui,sans-serif'; ctx.fillStyle='#fff';
-  ctx.fillText('⛏️ HAU DRAUF!',W/2,H*0.18);
+  ctx.fillText('⛏️ HAU DRAUF!',W/2,H*0.075);
   ctx.font='500 '+Math.min(16,W*0.03)+'px system-ui,sans-serif'; ctx.fillStyle='rgba(255,255,255,.72)';
-  ctx.fillText('Wisch mit der Steinaxt über den Block – jeder zerschlagene Block = 1 Stein',W/2,H*0.18+34);
+  ctx.fillText('Wisch über den Felsen – wo du wischst, bricht ein Block heraus',W/2,H*0.075+30);
   ctx.font='800 '+Math.min(36,W*0.056)+'px system-ui,sans-serif'; ctx.fillStyle='#ffcf6b';
-  ctx.fillText('🪨 '+c.blocks,ct.x,ct.y-c.size*0.5-52);
-  const prog=clamp(c.t/5600,0,1), rr=c.size*0.5+42;
+  ctx.fillText('🪨 '+c.stones,ct.x,ct.y-c.R-34);
+  const prog=clamp(c.t/5600,0,1), rr=c.R+26;
   ctx.strokeStyle='rgba(255,255,255,.16)'; ctx.lineWidth=7; ctx.beginPath(); ctx.arc(ct.x,ct.y,rr,0,7); ctx.stroke();
   ctx.strokeStyle=prog<0.3?'#ff6b6b':'#ffcf6b'; ctx.lineWidth=7; ctx.beginPath(); ctx.arc(ct.x,ct.y,rr,-Math.PI/2,-Math.PI/2+prog*6.283); ctx.stroke();
   ctx.font='600 14px system-ui,sans-serif'; ctx.fillStyle='rgba(255,255,255,.6)';
@@ -690,7 +739,7 @@ function drawChisel(){ const c=G.chisel; if(!c) return; const ct=chiselCenter();
 
 /* shooting */
 function startReload(){ if(G.reloading)return; G.reloading=true; G.reloadT=1300; sndReload(); }
-function reloadNow(){ if(G.state==='playing' && !G.chisel && !isInf() && G.ammo<MAG) startChisel(); }
+function reloadNow(){ if(G.state==='playing' && !G.chisel && !isInf() && G.ammo<MAXA) startChisel(); }
 function fireAt(px,py){
   if(G.chisel||G.shotCd>0) return;
   if(G.ammo<=0 && !isInf()){ sndMiss(); startChisel(); return; } // leer => Meißel-Minispiel
@@ -831,7 +880,7 @@ function drawHUD(){
   const rb=document.getElementById('reloadBtn');
   if(isInf()){ rb.textContent='∞'; rb.className='reloading'; }
   else if(G.chisel){ rb.textContent='⛏️'; rb.className='reloading'; }
-  else { rb.textContent='⟳ '+G.ammo+'/'+MAG; rb.className=G.ammo<=3?'low':''; }
+  else { rb.textContent='🪨 '+G.ammo; rb.className=G.ammo<=3?'low':''; }
 }
 function roundRect(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
 function drawVignette(){ const g=ctx.createRadialGradient(W/2,H*0.45,Math.min(W,H)*0.35,W/2,H*0.5,Math.max(W,H)*0.75); g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,'rgba(0,0,0,.42)'); ctx.fillStyle=g; ctx.fillRect(0,0,W,H); }
@@ -912,12 +961,14 @@ function addPlace(){ const inp=document.getElementById('addrInput'); const a=(in
 function buildCities(){ const box=document.getElementById('cities'); box.innerHTML='';
   LEVELS.forEach((L,i)=>{ const d=document.createElement('div'); d.className='city'+(i===levelIndex?' on':'');
     d.innerHTML=esc(L.name)+'<span class="land">'+esc(L.land)+'</span>'+((L.bg||L.svTiles)?'<span class="ph">'+(L.source==='sv'?'🛰️':'📷')+'</span>':'');
-    if(L.custom){ const bar=document.createElement('div'); bar.className='ctl';
-      bar.innerHTML='<button data-a="l" title="drehen">◀</button><button data-a="r" title="drehen">▶</button><button data-a="x" title="löschen">✕</button>';
-      bar.querySelectorAll('button').forEach(b=>{ b.onclick=(ev)=>{ ev.stopPropagation(); const ci=i-BASE_N; if(ci<0||!custom[ci])return;
-        if(b.dataset.a==='x'){ custom.splice(ci,1); saveJSON('taubenPlaces',custom); syncCustom(); buildCities(); return; }
-        custom[ci].heading=((custom[ci].heading||0)+(b.dataset.a==='l'?-30:30)+360)%360; saveJSON('taubenPlaces',custom); syncCustom();
-        const LL=LEVELS[i]; LL.bg=null; LL.svTiles=null; LL.bgCanvas=null; LL.loading=false; loadPhoto(LL); buildCities(); }; });
+    { const bar=document.createElement('div'); bar.className='ctl';
+      bar.innerHTML='<button data-a="l" title="Blick drehen">◀</button><button data-a="r" title="Blick drehen">▶</button>'+(L.custom?'<button data-a="x" title="löschen">✕</button>':'');
+      bar.querySelectorAll('button').forEach(b=>{ b.onclick=(ev)=>{ ev.stopPropagation();
+        if(b.dataset.a==='x'){ const ci=i-BASE_N; if(ci<0||!custom[ci])return; custom.splice(ci,1); saveJSON('taubenPlaces',custom); syncCustom(); buildCities(); return; }
+        const delta=(b.dataset.a==='l'?-25:25);
+        if(L.custom){ const ci=i-BASE_N; if(ci<0||!custom[ci])return; custom[ci].heading=((custom[ci].heading||0)+delta+360)%360; saveJSON('taubenPlaces',custom); syncCustom(); }
+        else { const k=L.name+'|'+(L.spotIdx||0); headFix[k]=(((headFix[k]||0)+delta)%360+360)%360; saveJSON('taubenHeadFix',headFix); applySpot(L,L.spotIdx||0); }
+        const LL=LEVELS[i]; LL.bg=null; LL.svTiles=null; LL.bgCanvas=null; LL.loading=false; LL.source=null; loadPhoto(LL); buildCities(); }; });
       d.appendChild(bar); }
     d.onclick=()=>{ levelIndex=i; loadPhoto(LEVELS[i]); document.querySelectorAll('.city').forEach(x=>x.classList.remove('on')); d.classList.add('on'); renderBoards(); };
     box.appendChild(d); }); }
@@ -1000,6 +1051,7 @@ document.getElementById('addPlaceBtn').onclick=addPlace;
 document.getElementById('addrInput').addEventListener('keydown',e=>{ if(e.key==='Enter') addPlace(); });
 
 installBranding();
+LEVELS.forEach(L=>applySpot(L,0));
 ensureProfile(); syncCustom(); buildCities(); renderBoards(); resize();
 LEVELS.forEach((L,i)=>setTimeout(()=>{ loadPhoto(L); setTimeout(buildCities,1200); }, i*250));
 requestAnimationFrame(tick);
