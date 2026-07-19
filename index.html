@@ -10,11 +10,15 @@
 <title>Taubenknaller – Österreich Edition</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-  html,body { width:100%; height:100%; overflow:hidden; background:#070a12; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif; user-select:none; -webkit-user-select:none; touch-action:none; cursor:crosshair; color:#fff; }
+  html,body { width:100%; height:100%; overflow:hidden; background:#070a12; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;
+    user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; touch-action:none;
+    overscroll-behavior:none; -webkit-tap-highlight-color:transparent; cursor:crosshair; color:#fff; }
   #wrap { position:fixed; inset:0; }
   canvas { display:block; width:100%; height:100%; touch-action:none; }
   .overlay { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; padding:18px 16px 40px;
-    background:linear-gradient(180deg, rgba(8,14,26,.55), rgba(3,6,12,.78)); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); text-align:center; cursor:default; overflow-y:auto; }
+    background:linear-gradient(180deg, rgba(8,14,26,.55), rgba(3,6,12,.78)); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); text-align:center; cursor:default;
+    overflow-y:auto; touch-action:pan-y; -webkit-overflow-scrolling:touch; overscroll-behavior:contain;
+    padding-bottom:calc(40px + env(safe-area-inset-bottom)); }
   .card { background:rgba(255,255,255,.07); backdrop-filter:blur(34px) saturate(1.7); -webkit-backdrop-filter:blur(34px) saturate(1.7);
     border:1px solid rgba(255,255,255,.16); border-radius:30px; padding:24px 22px; max-width:760px; width:100%; margin:auto;
     box-shadow:0 24px 70px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.22); }
@@ -90,10 +94,30 @@
   .credit { margin-top:12px; font-size:10px; opacity:.4; max-width:640px; margin:12px auto 0; line-height:1.5; }
   .stat { font-size:clamp(17px,4.4vw,25px); margin:4px 0; }
   .stat b { color:#ffcf6b; }
-  input { outline:none; }
+  input { outline:none; font-size:16px; } /* 16px verhindert Auto-Zoom auf Android/iOS */
+  /* --- Handys: kompakter, größere Tap-Ziele --- */
+  @media (max-width:560px){
+    .card { padding:16px 13px; border-radius:24px; }
+    .brand { gap:11px; } .logo { width:58px; height:58px; border-radius:15px; }
+    .cities { grid-template-columns:repeat(auto-fit,minmax(104px,1fr)); gap:7px; }
+    .city { padding:8px 5px; font-size:12px; }
+    .city .ctl button { font-size:12px; padding:6px 0; }
+    .panels { gap:8px; }
+    .board { max-height:132px; }
+    .btn { padding:14px 30px; width:100%; margin:8px 0; }
+    .pvbtns button { padding:12px 13px; min-width:46px; font-size:17px; }
+    .addplace input, .addfriend input { font-size:16px; }
+  }
+  @media (max-height:430px){ .card { padding:12px; } .brand { margin:0; } .board { max-height:104px; } }
+  /* Hinweis: Hochformat am Handy */
+  #rotHint { position:absolute; inset:auto 0 calc(84px + env(safe-area-inset-bottom)) 0; z-index:25; display:none;
+    justify-content:center; pointer-events:none; }
+  #rotHint span { background:rgba(10,14,24,.62); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px);
+    border:1px solid rgba(255,255,255,.18); border-radius:20px; padding:9px 16px; font-size:12.5px; color:#fff; opacity:.9; }
+  @media (max-width:900px) and (orientation:portrait){ #rotHint.on { display:flex; } }
   .note { font-size:12px; opacity:.7; line-height:1.5; margin-top:10px; }
   /* Reload-Button im Spiel */
-  #reloadBtn { position:absolute; right:16px; bottom:22px; z-index:20; cursor:pointer; border:none; border-radius:18px;
+  #reloadBtn { position:absolute; right:16px; bottom:calc(22px + env(safe-area-inset-bottom)); z-index:20; cursor:pointer; border:none; border-radius:18px;
     padding:14px 20px; font-size:17px; font-weight:800; color:#241300; background:linear-gradient(#ffe08a,#ffab2e);
     box-shadow:0 10px 26px rgba(255,150,40,.45),inset 0 1px 0 rgba(255,255,255,.7); display:flex; align-items:center; gap:8px; }
   #reloadBtn:active { transform:scale(.94); }
@@ -101,7 +125,7 @@
   #reloadBtn.low { animation:pulse .7s infinite; }
   @keyframes pulse { 0%,100%{ box-shadow:0 10px 26px rgba(255,150,40,.45);} 50%{ box-shadow:0 10px 34px rgba(255,90,60,.85);} }
   /* Vollbild-Vorschau zum Einstellen des Ausschnitts */
-  #previewBar { position:absolute; left:50%; transform:translateX(-50%); bottom:20px; z-index:30; display:flex; flex-direction:column; align-items:center; gap:9px; width:min(96vw,700px); }
+  #previewBar { position:absolute; left:50%; transform:translateX(-50%); bottom:calc(20px + env(safe-area-inset-bottom)); z-index:30; display:flex; flex-direction:column; align-items:center; gap:9px; width:min(96vw,700px); }
   .pvinfo { font-size:12px; color:#fff; background:rgba(10,14,24,.5); backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px);
     border:1px solid rgba(255,255,255,.16); border-radius:14px; padding:8px 14px; text-align:center; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .pvbtns { display:flex; gap:7px; flex-wrap:wrap; justify-content:center; background:rgba(10,14,24,.5); backdrop-filter:blur(22px); -webkit-backdrop-filter:blur(22px);
@@ -110,7 +134,7 @@
     border-radius:12px; font-size:16px; font-weight:700; padding:10px 15px; min-width:48px; }
   .pvbtns button:active { transform:scale(.93); }
   .pvbtns button.ok { background:linear-gradient(#ffe08a,#ffab2e); color:#241300; border:none; font-size:14px; padding:10px 18px; }
-  #homeBtn { position:absolute; left:16px; bottom:22px; z-index:20; cursor:pointer; border:1px solid rgba(255,255,255,.25);
+  #homeBtn { position:absolute; left:16px; bottom:calc(22px + env(safe-area-inset-bottom)); z-index:20; cursor:pointer; border:1px solid rgba(255,255,255,.25);
     background:rgba(10,14,24,.5); color:#fff; border-radius:14px; padding:12px 16px; font-size:14px; font-weight:700; backdrop-filter:blur(8px); }
 </style>
 </head>
@@ -119,6 +143,7 @@
   <canvas id="c"></canvas>
   <button id="reloadBtn" class="hidden">⟳ Nachladen</button>
   <button id="homeBtn" class="hidden">☰ Menü</button>
+  <div id="rotHint"><span>📱 Quer halten spielt sich besser</span></div>
 
   <div id="previewBar" class="hidden">
     <div class="pvinfo" id="pvInfo"></div>
@@ -205,6 +230,7 @@ function resize(){
   for(const L of LEVELS) L.bgCanvas=null;
 }
 window.addEventListener('resize',resize);
+window.addEventListener('orientationchange',()=>setTimeout(resize,250));
 
 const rand=(a,b)=>a+Math.random()*(b-a);
 const clamp=(v,a,b)=>v<a?a:v>b?b:v;
@@ -455,6 +481,8 @@ function newGame(){
   document.getElementById('over').classList.add('hidden');
   document.getElementById('reloadBtn').classList.remove('hidden');
   document.getElementById('homeBtn').classList.remove('hidden');
+  document.getElementById('rotHint').classList.add('on');
+  setTimeout(()=>document.getElementById('rotHint').classList.remove('on'),4000);
 }
 
 /* pigeons */
@@ -924,11 +952,19 @@ function drawVignette(){ const g=ctx.createRadialGradient(W/2,H*0.45,Math.min(W,
 /* input */
 function posFromEvt(e){ const t=e.touches?(e.touches[0]||e.changedTouches[0]):e; return {x:t.clientX,y:t.clientY}; }
 function onMove(e){ const p=posFromEvt(e); G.cross.x=p.x; G.cross.y=p.y; if(G.chisel) chiselSwipe(p.x,p.y); }
-function onDown(e){ if(G.state!=='playing')return; e.preventDefault(); const p=posFromEvt(e); G.cross.x=p.x; G.cross.y=p.y; actx();
+let touchInput=false;
+function onDown(e){ if(e.touches) touchInput=true; if(G.state!=='playing')return; e.preventDefault();
+  const p=posFromEvt(e); G.cross.x=p.x; G.cross.y=p.y; actx();
   if(G.chisel){ G.chisel.last={x:p.x,y:p.y}; return; } fireAt(p.x,p.y); }
+function endPointer(){ if(G.chisel) G.chisel.last=null; }
 cv.addEventListener('mousemove',onMove); cv.addEventListener('mousedown',onDown);
-cv.addEventListener('touchmove',e=>{onMove(e); e.preventDefault();},{passive:false}); cv.addEventListener('touchstart',onDown,{passive:false});
-cv.addEventListener('contextmenu',e=>{ e.preventDefault(); reloadNow(); });
+cv.addEventListener('mouseup',endPointer); cv.addEventListener('mouseleave',endPointer);
+cv.addEventListener('touchmove',e=>{onMove(e); e.preventDefault();},{passive:false});
+cv.addEventListener('touchstart',onDown,{passive:false});
+cv.addEventListener('touchend',e=>{ endPointer(); e.preventDefault(); },{passive:false});
+cv.addEventListener('touchcancel',endPointer,{passive:true});
+// Rechtsklick nur mit Maus zum Nachladen – auf Android löst Langdruck sonst ungewollt aus
+cv.addEventListener('contextmenu',e=>{ e.preventDefault(); if(!touchInput) reloadNow(); });
 window.addEventListener('keydown',e=>{ if(e.key==='r'||e.key==='R') reloadNow(); });
 document.getElementById('reloadBtn').addEventListener('click',e=>{ e.stopPropagation(); actx(); reloadNow(); });
 document.getElementById('homeBtn').addEventListener('click',e=>{ e.stopPropagation(); toMenu(); });
@@ -1117,7 +1153,10 @@ function makeIcon(){ const c=document.createElement('canvas'); c.width=c.height=
 function installBranding(){ let url; try{ url=makeIcon(); }catch(e){ return; }
   const add=(rel,extra)=>{ const l=document.createElement('link'); l.rel=rel; if(extra) for(const k in extra) l.setAttribute(k,extra[k]); l.href=url; document.head.appendChild(l); };
   add('apple-touch-icon'); add('icon',{type:'image/png',sizes:'512x512'});
-  try{ const mani={name:'Taubenknaller',short_name:'Taubenknaller',display:'standalone',orientation:'landscape',background_color:'#0a1424',theme_color:'#ffab2e',icons:[{src:url,sizes:'512x512',type:'image/png',purpose:'any'}]};
+  try{ const here=location.href.split('#')[0];
+    const mani={name:'Taubenknaller',short_name:'Taubenknaller',description:'Tauben-Shooter – Österreich Edition',
+      start_url:here, scope:here.replace(/[^/]*$/,''), display:'standalone',orientation:'landscape',
+      background_color:'#0a1424',theme_color:'#ffab2e',icons:[{src:url,sizes:'512x512',type:'image/png',purpose:'any maskable'}]};
     const ml=document.createElement('link'); ml.rel='manifest'; ml.href='data:application/manifest+json,'+encodeURIComponent(JSON.stringify(mani)); document.head.appendChild(ml); }catch(e){}
   const tc=document.createElement('meta'); tc.name='theme-color'; tc.content='#ffab2e'; document.head.appendChild(tc);
   const li=document.getElementById('logoImg'); if(li) li.src=url; }
