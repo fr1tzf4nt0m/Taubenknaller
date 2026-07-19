@@ -4,7 +4,7 @@
    - Street-View- und Wikimedia-Fotos werden dauerhaft zwischengespeichert,
      sobald sie einmal online geladen wurden (auch ohne CORS, als "opaque response")
 */
-const CACHE = 'taubenknaller-v2';
+const CACHE = 'taubenknaller-v3';
 const SHELL = ['./', './index.html', './manifest.json',
                './icon-192.png', './icon-512.png', './icon-maskable-512.png'];
 
@@ -52,7 +52,23 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // --- App selbst: Netz bevorzugt (immer aktuell), offline aus dem Cache ---
+  // --- Seitenaufrufe (Start der App): offline immer aus dem Cache bedienen ---
+  if (req.mode === 'navigate') {
+    e.respondWith((async () => {
+      const c = await caches.open(CACHE);
+      try {
+        const res = await fetch(req);
+        if (res && res.status === 200) c.put(req, res.clone()).catch(() => {});
+        return res;
+      } catch (err) {
+        return (await c.match(req)) || (await c.match('./index.html')) ||
+               (await c.match('./')) || (await c.match('index.html')) || Response.error();
+      }
+    })());
+    return;
+  }
+
+  // --- Übrige eigene Dateien: Netz bevorzugt, offline aus dem Cache ---
   if (url.origin === location.origin) {
     e.respondWith((async () => {
       const c = await caches.open(CACHE);
