@@ -119,6 +119,13 @@
   .credit { margin-top:12px; font-size:10px; opacity:.4; max-width:640px; margin:12px auto 0; line-height:1.5; }
   .stat { font-size:clamp(17px,4.4vw,25px); margin:4px 0; }
   .stat b { color:#ffcf6b; }
+  .overcity { font-size:13px; opacity:.65; margin:-2px 0 12px; letter-spacing:.4px; }
+  .statgrid { display:grid; grid-template-columns:1fr 1fr; gap:9px; margin:6px 0 12px; }
+  .statgrid > div { background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.13); border-radius:16px; padding:12px 8px; }
+  .statgrid b { display:block; font-size:clamp(24px,6.4vw,32px); color:#ffcf6b; line-height:1.1; }
+  .statgrid span { display:block; font-size:11px; opacity:.6; margin-top:3px; letter-spacing:.3px; }
+  .btnrow { display:flex; gap:8px; justify-content:center; flex-wrap:wrap; }
+  .btnrow .btn { flex:1; min-width:130px; margin:4px 0; padding:13px 16px; font-size:16px; }
   input { outline:none; font-size:16px; } /* 16px verhindert Auto-Zoom auf Android/iOS */
   /* --- Handys: kompakter, größere Tap-Ziele --- */
   @media (max-width:560px){
@@ -233,14 +240,20 @@
   <div id="over" class="overlay hidden">
     <div class="card small">
       <h1 id="overTitle">Zeit um!</h1>
-      <div class="stat">Getroffen: <b id="hitCount">0</b> Tauben</div>
-      <div class="stat">Trefferquote: <b id="acc">0%</b></div>
-      <div class="stat">Beste Combo: <b id="bestCombo">0</b>×</div>
-      <div class="stat" style="margin-top:8px">Punkte: <b id="finalScore">0</b></div>
-      <div class="stat">Highscore <span id="hiCity"></span>: <b id="hiScore">0</b></div>
+      <div class="overcity" id="overCity"></div>
+      <div class="statgrid">
+        <div><b id="finalScore">0</b><span>Punkte</span></div>
+        <div><b id="hitCount">0</b><span>Tauben</span></div>
+        <div><b id="acc">0%</b><span>Trefferquote</span></div>
+        <div><b id="bestCombo">0</b><span>beste Combo</span></div>
+      </div>
+      <div class="stat" style="font-size:16px">Highscore <span id="hiCity"></span>: <b id="hiScore">0</b></div>
       <div id="rankLine" class="note" style="opacity:.85"></div>
-      <button class="btn" id="againBtn">Nochmal</button>
-      <button class="btn sec" id="menuBtn">Menü</button>
+      <button class="btn play" id="randBtn">🎲 Neue Zufallsstadt</button>
+      <div class="btnrow">
+        <button class="btn sec" id="againBtn">↻ Nochmal</button>
+        <button class="btn sec" id="menuBtn">☰ Menü</button>
+      </div>
     </div>
   </div>
 </div>
@@ -1045,6 +1058,8 @@ function endGame(){
   document.getElementById('hiCity').textContent='('+city+')';
   document.getElementById('hiScore').textContent=Math.max(prev,G.score);
   document.getElementById('rankLine').textContent='Platz '+rank+' von '+rows.length+' in der Bestenliste von '+city+'.';
+  document.getElementById('overCity').textContent='📍 '+city+' · '+LEVELS[levelIndex].land;
+  document.getElementById('againBtn').textContent='↻ Nochmal · '+city;
   document.getElementById('over').classList.remove('hidden'); renderBoards();
 }
 /* ---------- Eigene Plätze per Adresse (werden gespeichert) ---------- */
@@ -1146,6 +1161,9 @@ document.getElementById('playBtn').onclick=()=>{ actx();
   else levelIndex=Math.floor(Math.random()*LEVELS.length); // Zufallsstadt
   newGame(); };
 document.getElementById('againBtn').onclick=()=>{ actx(); newGame(); };
+document.getElementById('randBtn').onclick=()=>{ actx();
+  let n=levelIndex; if(LEVELS.length>1){ do{ n=Math.floor(Math.random()*LEVELS.length); }while(n===levelIndex); }
+  levelIndex=n; newGame(); };
 document.getElementById('menuBtn').onclick=()=>toMenu();
 
 /* init */
